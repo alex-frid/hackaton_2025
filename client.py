@@ -7,7 +7,7 @@ import time
 UDP_PORT = 27069
 TCP_PORT = 27069
 BUFFER_SIZE = 1024
-SERVER_IP = '192.168.192.227'
+SERVER_IP = '10.202.66.20'
 MAGIC_COOKIE = b'\xAB\xCD\xDC\xBA'  # Magic cookie
 REQUEST_TYPE = 0x03  # request message type
 
@@ -19,12 +19,13 @@ class Client:
         self.state = "Startup"
 
     def set_parameters(self):
-        """Ask user for parameters"""
+        """ask user for parameters"""
         self.file_size = int(input("Enter the file size (in bytes): "))
         self.state = "Looking for a server"
 
+
     def listen_for_offers(self):
-        """Listen for offer requests and select the first server found"""
+        """listen for offer requests and select the first server found"""
         udp_socket = socket(AF_INET, SOCK_DGRAM)
         udp_socket.bind(('', UDP_PORT))
         print("Client started, listening for offer requests...")

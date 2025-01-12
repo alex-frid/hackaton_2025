@@ -3,11 +3,10 @@ from threading import Thread
 import time
 import struct
 
-
 # Const
-SERVER_IP = '192.168.192.227'
-UDP_PORT = 27069
-TCP_PORT = 27069
+SERVER_IP = "127.0.0.1"
+UDP_PORT = 8888
+TCP_PORT = 8080
 BUFFER_SIZE = 1024
 BROADCAST_INTERVAL = 1
 OFFER_TYPE = 0x02  # offer message type
@@ -19,17 +18,17 @@ MAGIC_COOKIE = b'\xAB\xCD\xDC\xBA'
 def broadcast_offer():
     # set up UDP socket for broadcast
     udp_socket = socket(AF_INET, SOCK_DGRAM)
-    udp_socket.bind(('', UDP_PORT))
-
+    udp_socket.setsockopt(SOL_SOCKET, SO_BROADCAST, 1)
+    data = MAGIC_COOKIE + struct.pack('B', OFFER_TYPE) + struct.pack('!HH', UDP_PORT, TCP_PORT)
+    print(f"Server started, listening on OP address {SERVER_IP}")
 
     while True:
         # Broadcast offer every second
-        udp_socket.sendto(MAGIC_COOKIE + struct.pack('B', OFFER_TYPE) + struct.pack('!HH', UDP_PORT, TCP_PORT),
-                          ("<broadcast>", UDP_PORT))
+        udp_socket.sendto(data, ('255.255.255.255', UDP_PORT))
         time.sleep(BROADCAST_INTERVAL)
 
 
-def handle_udp_connection(udp_socket, client_address,file_size):
+def handle_udp_connection(udp_socket, client_address, file_size):
     total_segments = file_size // BUFFER_SIZE
     segment_count = 0
     bytes_sent = 0
@@ -38,8 +37,8 @@ def handle_udp_connection(udp_socket, client_address,file_size):
     while bytes_sent < file_size:
         # create a payload message
         current_segment_count = segment_count + 1
-        payload_data = MAGIC_COOKIE + struct.pack('B', PAYLOAD_TYPE) + struct.pack('!QQ',total_segments, current_segment_count)
-        payload_data += b"A" * min(file_size - bytes_sent, BUFFER_SIZE) # actual data
+        payload_data = MAGIC_COOKIE + struct.pack('B', PAYLOAD_TYPE) + struct.pack('!QQ', total_segments, current_segment_count)
+        payload_data += b"A" * min(file_size - bytes_sent, BUFFER_SIZE)  # actual data
 
         udp_socket.sendto(payload_data, client_address)
         bytes_sent += len(payload_data) - 12  # minus cookie and the header
@@ -53,8 +52,7 @@ def handle_tcp_connection():
 
 
 def start_server():
-    #Thread(target=broadcast_offer, daemon=True).start()
-    broadcast_offer()
+    Thread(target=broadcast_offer, daemon=True).start()
     # server starts listen for UDP connections
 
     # handle UDP connection
