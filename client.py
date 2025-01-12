@@ -3,13 +3,13 @@ import threading
 import struct
 import time
 
-# Constants
+# Const
 UDP_PORT = 27069
 TCP_PORT = 27069
 BUFFER_SIZE = 1024
-SERVER_IP = '0.0.0.0'
+SERVER_IP = '192.168.192.227'
 MAGIC_COOKIE = b'\xAB\xCD\xDC\xBA'  # Magic cookie
-REQUEST_TYPE = 0x03  # Request message type
+REQUEST_TYPE = 0x03  # request message type
 
 
 class Client:

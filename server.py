@@ -5,7 +5,7 @@ import struct
 
 
 # Const
-SERVER_IP = '0.0.0.0'
+SERVER_IP = '192.168.192.227'
 UDP_PORT = 27069
 TCP_PORT = 27069
 BUFFER_SIZE = 1024
@@ -20,6 +20,7 @@ def broadcast_offer():
     # set up UDP socket for broadcast
     udp_socket = socket(AF_INET, SOCK_DGRAM)
     udp_socket.bind(('', UDP_PORT))
+
 
     while True:
         # Broadcast offer every second
@@ -52,13 +53,13 @@ def handle_tcp_connection():
 
 
 def start_server():
-    Thread(target=broadcast_offer, daemon=True).start()
+    #Thread(target=broadcast_offer, daemon=True).start()
+    broadcast_offer()
     # server starts listen for UDP connections
 
     # handle UDP connection
     while True:
         udp_socket = socket(AF_INET, SOCK_DGRAM)
-        udp_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         udp_socket.bind(('', UDP_PORT))
         data, addr = udp_socket.recvfrom(BUFFER_SIZE)
         if data.startswith(MAGIC_COOKIE) and data[4] == REQUEST_TYPE:
