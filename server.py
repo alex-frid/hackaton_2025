@@ -86,12 +86,11 @@ def start_server():
                 print(f"connection established from user with ip :{addr}")
                 file_size = struct.unpack('!Q', data[5:13])[0]
                 Thread(target=handle_udp_connection, args=(udp_socket, addr, file_size), daemon=True).start()
-                break
 
     def tcp_server_start():
         # start the tcp and listen for connections.
         tcp_socket = socket(AF_INET, SOCK_STREAM)
-        # tcp_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+        tcp_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         tcp_socket.bind(('', TCP_PORT))
         tcp_socket.listen(5)
 
@@ -110,9 +109,6 @@ def start_server():
             except Exception as e:
                 print(f"Error in TCP server: {e}")
                 break
-        tcp_socket.close()
-
-    tcp_server_start()
 
 
 if __name__ == '__main__':
