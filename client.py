@@ -8,23 +8,27 @@ BUFFER_SIZE = 1024
 MAGIC_COOKIE = b'\xAB\xCD\xDC\xBA'  # Magic cookie
 REQUEST_TYPE = 0x03  # request message type
 OFFER_TYPE = 0x02  # offer message type
+PAYLOAD_TYPE = 0x04  # Payload message type
 
 
 class Client:
     def __init__(self):
-        # TODO: add data struct from holding sockets i.e list
         self.file_size = 0
         self.server_ip = None
         self.UDP_PORT = None
         self.TCP_PORT = None
+        self.num_tcp_connections = 1
+        self.num_udp_connections = 1
         self.state = "Startup"
         self.sock_udp = socket(AF_INET, SOCK_DGRAM)
+        self.sock_tcp = socket(AF_INET, SOCK_STREAM)
 
     def set_parameters(self):
         """ask user for parameters"""
         self.file_size = int(input("Enter the file size (in bytes): "))
         self.state = "Looking for a server"
-        # TODO: ask for number of TCP/UDP connections
+        self.num_tcp_connections = int(input("Enter the number of TCP connections: "))
+        self.num_udp_connections = int(input("Enter the number of UDP connections: "))
 
     def listen_for_offers(self):
         """listen for offer requests and select the first server found"""
@@ -65,23 +69,62 @@ class Client:
         print(
             f"UDP transfer finished, total time: {total_time:.2f} seconds, total speed: {total_bytes_received * 8 / total_time / 1e6:.2f} Mbits/sec")
 
+    def handle_tcp_transfer(self):
+        """Handle the TCP transfer."""
+        try:
+            self.sock_tcp.connect((self.server_ip, self.TCP_PORT))
+            print(f"Connected to server {self.server_ip} on TCP port {self.TCP_PORT}")
+
+            # Send the request message
+            request_message = MAGIC_COOKIE + struct.pack('B', REQUEST_TYPE) + struct.pack('!Q', self.file_size)
+            self.sock_tcp.send(request_message)
+
+            # Receive data
+            total_bytes_received = 0
+            start_time = time.time()
+            current_segment_received = 0
+            total_segments = float('inf')
+
+            while current_segment_received < total_segments:
+                data = self.sock_tcp.recv(BUFFER_SIZE)
+                if data.startswith(MAGIC_COOKIE) and data[4] == PAYLOAD_TYPE:  # Payload message
+                    total_segments, current_segment_received = struct.unpack('!QQ', data[5:21])
+                    print(f"total is :{total_segments} and current segment is : {current_segment_received}")
+                    payload_size = len(data) - 21
+                    total_bytes_received += payload_size
+                    print(f"Segment {current_segment_received}/{total_segments} received.")
+
+            total_time = time.time() - start_time
+            print(
+                f"TCP transfer finished: {total_bytes_received} bytes in {total_time:.2f} seconds, "
+                f"speed: {total_bytes_received * 8 / total_time / 1e6:.2f} Mbps"
+            )
+
+        except Exception as e:
+            print(f"Error during TCP transfer: {e}")
+        finally:
+            self.sock_tcp.close()
+            print("TCP connection closed.")
+
     def start_speedtest(self):
-        """Start both TCP and UDP transfers"""
-        # threads = []
-        #
-        # # Start TCP transfer
-        # # TODO: TCP transfer
-        #
-        # # Start UDP transfer
-        # # TODO: open Thread for each number of socket connections
-        # udp_thread = Thread(target=self.handle_udp_transfer)
-        # udp_thread.start()
-        # threads.append(udp_thread)
-        #
-        # # Wait for all transfers to finish
-        # for thread in threads:
-        #     thread.join()
-        self.handle_udp_transfer()
+        """Start the speed test with multiple connections."""
+        threads = []
+
+        # Start TCP transfers
+        for _ in range(self.num_tcp_connections):
+            tcp_thread = Thread(target=self.handle_tcp_transfer)
+            tcp_thread.start()
+            threads.append(tcp_thread)
+
+        # Start UDP transfers
+        for _ in range(self.num_udp_connections):
+            udp_thread = Thread(target=self.handle_udp_transfer)
+            udp_thread.start()
+            threads.append(udp_thread)
+
+        # Wait for all transfers to finish
+        for thread in threads:
+            thread.join()
 
         print("All transfers complete, listening for offers...")
 
