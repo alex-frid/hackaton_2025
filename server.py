@@ -2,9 +2,10 @@ from socket import *
 from threading import Thread
 import time
 import struct
+import math
 
 # Const
-SERVER_IP = "10.0.0.3"
+SERVER_IP = '10.5.0.2'
 UDP_PORT = 8888
 TCP_PORT = 8080
 BUFFER_SIZE = 1024
@@ -29,43 +30,57 @@ def broadcast_offer():
 
 def handle_udp_connection(udp_socket, client_address, file_size):
     """ Handle UDP connection and perform the data transfer operations"""
-    total_segments = file_size // BUFFER_SIZE
-    segment_count = 0
+    total_segments = math.ceil(file_size / BUFFER_SIZE)
+    current_segment_count = 0
     bytes_sent = 0
 
     while bytes_sent < file_size:
         # create a payload message
-        current_segment_count = segment_count + 1
-        payload_data = MAGIC_COOKIE + struct.pack('B', PAYLOAD_TYPE) + struct.pack('!QQ', total_segments
-                                                                                           ,current_segment_count)
-        payload_data += b"A" * min(file_size - bytes_sent, BUFFER_SIZE)  # actual data
+        payload_data = MAGIC_COOKIE + struct.pack('B', PAYLOAD_TYPE) + struct.pack('!QQ', total_segments,
+                                                                                   current_segment_count)
 
+        payload_data += b"A" * min((file_size - bytes_sent), BUFFER_SIZE - 21)  # actual data
         udp_socket.sendto(payload_data, client_address)
-        bytes_sent += len(payload_data) - 12  # minus cookie and the header
-        segment_count += 1
+        current_segment_count += 1
+        bytes_sent += len(payload_data) - 21  # minus cookie and the header
 
 def handle_tcp_connection():
     # TODO: write tcp
     pass
 
-def start_server():
-    Thread(target=broadcast_offer, daemon=True).start()
-    print(f"Server started, listening on IP address {SERVER_IP}")
-    # server starts listen for UDP connections
 
-    # handle UDP connection
-    while True:
+def start_server():
+    udp_socket = None
+    try:
+        Thread(target=broadcast_offer, daemon=True).start()
+        print(f"Server started, listening on IP address {SERVER_IP}")
+        # server starts listen for UDP connections
+
+        # Create and bind UDP socket once
         udp_socket = socket(AF_INET, SOCK_DGRAM)
+        # udp_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         udp_socket.bind(('', UDP_PORT))
+
         data, addr = udp_socket.recvfrom(BUFFER_SIZE)
         if data.startswith(MAGIC_COOKIE) and data[4] == REQUEST_TYPE:
             print(f"connection established from user with ip :{addr}")
             file_size = struct.unpack('!Q', data[5:13])[0]
-            Thread(target=handle_udp_connection, args=(udp_socket, addr, file_size), daemon=True).start()
+            # Thread(target=handle_udp_connection, args=(udp_socket, addr, file_size), daemon=True).start()
+            handle_udp_connection(udp_socket, addr, file_size)
 
-    # handle TCP connection
-    # TODO : create TCP connection
+        # handle TCP connection
+        # TODO : create TCP connection
+    except Exception as e:
+        print(f"Exception occurred: {e}")
+
+    finally:
+        if udp_socket:
+            udp_socket.close()
+            print("UDP socket closed.")
 
 
 if __name__ == '__main__':
-    start_server()
+    try:
+        start_server()
+    except Exception as e:
+        print(f"An error occurred in the main server: {e}")
