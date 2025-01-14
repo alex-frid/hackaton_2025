@@ -1,40 +1,42 @@
 from socket import *
-import threading
+from threading import Thread
 import struct
 import time
 
 # Const
-UDP_PORT = 27069
-TCP_PORT = 27069
 BUFFER_SIZE = 1024
-SERVER_IP = '10.202.66.20'
+SERVER_IP = '127.0.0.1'
 MAGIC_COOKIE = b'\xAB\xCD\xDC\xBA'  # Magic cookie
 REQUEST_TYPE = 0x03  # request message type
+OFFER_TYPE = 0x02  # offer message type
 
 
 class Client:
     def __init__(self):
         self.file_size = 0
         self.server_ip = None
+        self.UDP_PORT = None
+        self.TCP_PORT = None
         self.state = "Startup"
 
     def set_parameters(self):
         """ask user for parameters"""
         self.file_size = int(input("Enter the file size (in bytes): "))
         self.state = "Looking for a server"
-
+        # TODO: ask for number of TCP/UDP connections
 
     def listen_for_offers(self):
         """listen for offer requests and select the first server found"""
         udp_socket = socket(AF_INET, SOCK_DGRAM)
-        udp_socket.bind(('', UDP_PORT))
+        udp_socket.bind(('', 1234))
+
         print("Client started, listening for offer requests...")
 
         while True:
             data, addr = udp_socket.recvfrom(BUFFER_SIZE)
-            if data.startswith(MAGIC_COOKIE) and data[4] == 0x02:  # Offer message
-                self.server_ip = addr[0]
-                print(f"Received offer from {self.server_ip}")
+            if data.startswith(MAGIC_COOKIE) and struct.unpack('B', data[4:5])[0] == OFFER_TYPE:  # Offer message
+                self.UDP_PORT, self.TCP_PORT = struct.unpack('!HH', data[5:])
+                print(f"Received offer from {self.server_ip}")  # with port from server
                 self.state = "Speedtest"
                 break
 
@@ -42,23 +44,22 @@ class Client:
         """Send the request for file transfer"""
         udp_socket = socket(AF_INET, SOCK_DGRAM)
         request_message = MAGIC_COOKIE + struct.pack('B', REQUEST_TYPE) + struct.pack('!Q', self.file_size)
-        udp_socket.sendto(request_message, (self.server_ip, UDP_PORT))
+        udp_socket.sendto(request_message, (self.server_ip, self.UDP_PORT))
 
     def handle_udp_transfer(self):
         """UDP transfer function"""
         udp_socket = socket(AF_INET, SOCK_DGRAM)
         total_bytes_received = 0
-        total_segments = (self.file_size + BUFFER_SIZE - 1) // BUFFER_SIZE
-        segments_received = 0
         start_time = time.time()
+        current_segment_received = 0
+        total_segments = float('inf')
 
-        while total_bytes_received < self.file_size:
+        while current_segment_received < total_segments:
             data, _ = udp_socket.recvfrom(BUFFER_SIZE)
             if data.startswith(MAGIC_COOKIE) and data[4] == 0x04:  # Payload message
-                total_segments, current_segment = struct.unpack('!QQ', data[5:13])
+                total_segments, current_segment_received = struct.unpack('!QQ', data[5:13])
                 payload_size = len(data) - 13
                 total_bytes_received += payload_size
-                segments_received += 1
 
         total_time = time.time() - start_time
         print(
@@ -69,10 +70,11 @@ class Client:
         threads = []
 
         # Start TCP transfer
-        #TODO: TCP transfer
+        # TODO: TCP transfer
 
         # Start UDP transfer
-        udp_thread = threading.Thread(target=self.handle_udp_transfer)
+        # TODO: open Thread for each number of socket connections
+        udp_thread = Thread(target=self.handle_udp_transfer)
         udp_thread.start()
         threads.append(udp_thread)
 
@@ -83,7 +85,7 @@ class Client:
         print("All transfers complete, listening for offers...")
 
     def run(self):
-        """Main client logic"""
+        """main client logic"""
         if self.state == "Startup":
             self.set_parameters()
 
