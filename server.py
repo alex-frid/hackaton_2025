@@ -3,8 +3,6 @@ from threading import Thread
 import time
 import struct
 import math
-import selectors
-import ipaddress
 
 # Const
 SERVER_IP = gethostbyname(gethostname())
@@ -117,8 +115,9 @@ def start_server():
     Thread(target=broadcast_offer, args=(udp_port, tcp_port), daemon=True).start()
     print(Colors.OKGREEN + f"Server started, listening on IP address {SERVER_IP}" + Colors.ENDC)
 
+    Thread(target=udp_server,args=(udp_socket,), daemon=True).start()
     tcp_server(tcp_socket)
-    udp_server(udp_socket)
+
 
     # Keep the main thread alive
     while True:
