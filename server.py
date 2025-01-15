@@ -83,7 +83,8 @@ def udp_server(sock):
             if data.startswith(MAGIC_COOKIE) and data[4] == REQUEST_TYPE:
                 print(Colors.OKBLUE + f"Connection established from user with IP: {addr}" + Colors.ENDC)
                 file_size = struct.unpack('!Q', data[5:13])[0]
-                Thread(target=handle_udp_connection, args=(addr, file_size), daemon=True).start()
+                # Thread(target=handle_udp_connection, args=(addr, file_size), daemon=True).start()
+                handle_udp_connection(addr, file_size)
         except Exception as e:
             print(Colors.FAIL + f"Error in udp_server: {e}" + Colors.ENDC)
 
@@ -115,9 +116,8 @@ def start_server():
     Thread(target=broadcast_offer, args=(udp_port, tcp_port), daemon=True).start()
     print(Colors.OKGREEN + f"Server started, listening on IP address {SERVER_IP}" + Colors.ENDC)
 
-    Thread(target=udp_server,args=(udp_socket,), daemon=True).start()
+    Thread(target=udp_server, args=(udp_socket,), daemon=True).start()
     tcp_server(tcp_socket)
-
 
     # Keep the main thread alive
     while True:

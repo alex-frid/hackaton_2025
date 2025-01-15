@@ -68,7 +68,7 @@ class Client:
 
     def handle_udp_transfer(self, num_thread):
         sock_udp = socket(AF_INET, SOCK_DGRAM)
-        sock_udp.settimeout(5)
+        sock_udp.settimeout(120)
         try:
             """UDP transfer function"""
             request_message = MAGIC_COOKIE + struct.pack('B', REQUEST_TYPE) + struct.pack('!Q', self.file_size)
