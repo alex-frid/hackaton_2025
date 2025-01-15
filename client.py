@@ -12,6 +12,19 @@ OFFER_TYPE = 0x02  # offer message type
 PAYLOAD_TYPE = 0x04  # Payload message type
 
 
+# ANSI color codes
+class Colors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+
 class Client:
     def __init__(self):
         self.file_size = 0
@@ -26,14 +39,15 @@ class Client:
         """Ask user for parameters"""
         while True:
             try:
+                print(Colors.OKCYAN + "Enter the parameters for the speed test:" + Colors.ENDC)
                 self.file_size = int(input("Enter the file size (in bytes): "))
                 self.num_tcp_connections = int(input("Enter the number of TCP connections: "))
                 self.num_udp_connections = int(input("Enter the number of UDP connections: "))
-                if self.file_size > 0 or self.num_tcp_connections > 0 or self.num_udp_connections > 0:
+                if self.file_size >= 0 or self.num_tcp_connections >= 0 or self.num_udp_connections >= 0:
                     break
 
             except ValueError:
-                print("Invalid input please try again")
+                print(Colors.WARNING + "Invalid input, please try again." + Colors.ENDC)
 
         self.state = "Looking for a server"
 
@@ -41,25 +55,24 @@ class Client:
         """Listen for offer requests and select the first server found"""
         udp_socket = socket(AF_INET, SOCK_DGRAM)
         udp_socket.bind(('', 9876))
-        print("Client started, listening for offer requests...")
+        print(Colors.OKBLUE + "Client started, listening for offer requests..." + Colors.ENDC)
 
         while True:
             data, addr = udp_socket.recvfrom(BUFFER_SIZE)
             if data.startswith(MAGIC_COOKIE) and struct.unpack('B', data[4:5])[0] == OFFER_TYPE:  # Offer message
                 self.UDP_PORT, self.TCP_PORT = struct.unpack('!HH', data[5:])
                 self.server_ip = addr[0]
-                print(f"Received offer from {self.server_ip}")  # with port from server
+                print(Colors.OKGREEN + f"Received offer from {self.server_ip}" + Colors.ENDC)  # with port from server
                 self.state = "Speedtest"
                 break
 
-    def handle_udp_transfer(self):
+    def handle_udp_transfer(self, num_thread):
         sock_udp = socket(AF_INET, SOCK_DGRAM)
-        sock_udp.settimeout(5)
+        sock_udp.settimeout(120)
         try:
             """UDP transfer function"""
             request_message = MAGIC_COOKIE + struct.pack('B', REQUEST_TYPE) + struct.pack('!Q', self.file_size)
             sock_udp.sendto(request_message, (self.server_ip, self.UDP_PORT))
-            print("UDP transfer started.")
 
             total_bytes_received = 0
             current_segment_received = 0
@@ -76,33 +89,32 @@ class Client:
                         total_bytes_received += payload_size
                 except timeout:
                     problem = True
-                    print("UDP transfer timeout: No data received for 5 seconds.")
+                    print(Colors.FAIL + f"UDP transfer #{num_thread} timeout: No data received for 5 seconds." + Colors.ENDC)
                     break
 
             if not problem:
                 total_time = time.time() - start_time
                 print(
-                    f"UDP transfer finished: {total_bytes_received} bytes in {total_time:.2f} seconds, \n"
-                    f"speed: {total_bytes_received * 8 / (total_time + 0.000001):.2f} bits/second, \n"
+                    Colors.OKGREEN +
+                    f"UDP transfer #{num_thread} finished, {total_bytes_received} bytes in {total_time:.2f} seconds, "
+                    f"speed: {total_bytes_received * 8 / (total_time + 0.000001):.2f} bits/second.\n"
                     f"percentage of packets received successfully: {total_bytes_received / self.file_size * 100:.2f}%\n"
+                    + Colors.ENDC
                 )
 
         except Exception as e:
-            print(f"Error during UDP transfer: {e}")
+            print(Colors.FAIL + f"Error during UDP transfer #{num_thread}: {e}" + Colors.ENDC)
         finally:
             sock_udp.close()
-            print("UDP connection closed.")
 
-    def handle_tcp_transfer(self):
+    def handle_tcp_transfer(self, num_thread):
         """Handle the TCP transfer."""
         sock_tcp = socket(AF_INET, SOCK_STREAM)
         try:
             sock_tcp.connect((self.server_ip, self.TCP_PORT))
-            print(f"Connected to server {self.server_ip} on TCP port {self.TCP_PORT}\n")
 
             file_size = str(self.file_size) + '\n'
             sock_tcp.send(file_size.encode())
-            print("TCP transfer started.")
 
             total_bytes_received = 0
             current_segment_received = 0
@@ -117,14 +129,16 @@ class Client:
 
             total_time = time.time() - start_time
             print(
-                f"TCP transfer finished: {total_bytes_received} bytes in {total_time:.2f} seconds, "
-                f"speed: {total_bytes_received * 8 / (total_time + 0.000001):.2f} bits/second"
+                Colors.OKGREEN +
+                f"TCP transfer #{num_thread} finished, {total_bytes_received} bytes in {total_time:.2f} seconds, "
+                f"speed: {total_bytes_received * 8 / (total_time + 0.000001):.2f} bits/second.\n"
+                f"percentage of packets received successfully: {total_bytes_received / self.file_size * 100:.2f}%\n"
+                + Colors.ENDC
             )
         except Exception as e:
-            print(f"Error during TCP transfer: {e}")
+            print(Colors.FAIL + f"Error during TCP transfer #{num_thread}: {e}" + Colors.ENDC)
         finally:
             sock_tcp.close()
-            print("TCP connection closed.")
 
     def start_speedtest(self):
         """Start the speed test with multiple connections."""
@@ -132,13 +146,13 @@ class Client:
 
         # Start TCP transfers
         for i in range(self.num_tcp_connections):
-            tcp_thread = Thread(target=self.handle_tcp_transfer, name=f"TCP-{i}")
+            tcp_thread = Thread(target=self.handle_tcp_transfer(i), name=f"TCP-{i}")
             tcp_thread.start()
             threads.append(tcp_thread)
 
         # Start UDP transfers
         for i in range(self.num_udp_connections):
-            udp_thread = Thread(target=self.handle_udp_transfer, name=f"UDP-{i}")
+            udp_thread = Thread(target=self.handle_udp_transfer(i), name=f"UDP-{i}")
             udp_thread.start()
             threads.append(udp_thread)
 
@@ -146,6 +160,7 @@ class Client:
         for thread in threads:
             thread.join()
 
+        print(Colors.OKCYAN + "All transfers complete, listening to offer requests." + Colors.ENDC)
 
     def run(self):
         """Main client logic"""
