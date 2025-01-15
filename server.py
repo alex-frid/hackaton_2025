@@ -69,6 +69,7 @@ def handle_tcp_connection(connection_socket, file_size):
     finally:
         connection_socket.close()
 
+
 def udp_server(sock):
     while True:
         try:
@@ -79,6 +80,7 @@ def udp_server(sock):
                 Thread(target=handle_udp_connection, args=(addr, file_size), daemon=True).start()
         except Exception as e:
             print(f"Error in udp_server: {e}")
+
 
 def tcp_server(sock):
     while True:
