@@ -28,7 +28,7 @@ def broadcast_offer():
 
     while True:
         try:
-            udp_socket.sendto(data, ('255.255.255.255', 1234))
+            udp_socket.sendto(data, ('192.168.192.255', 9876))
             time.sleep(BROADCAST_INTERVAL)
         except Exception as e:
             print(f"Error in broadcast_offer: {e}")
