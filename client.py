@@ -19,22 +19,21 @@ class Client:
         self.TCP_PORT = None
         self.num_tcp_connections = 1
         self.num_udp_connections = 1
-        self.state = "Startup"
         self.sock_udp = socket(AF_INET, SOCK_DGRAM)
         self.sock_tcp = socket(AF_INET, SOCK_STREAM)
+        self.state = "Startup"
 
     def set_parameters(self):
         """ask user for parameters"""
         self.file_size = int(input("Enter the file size (in bytes): "))
-        self.state = "Looking for a server"
         self.num_tcp_connections = int(input("Enter the number of TCP connections: "))
         self.num_udp_connections = int(input("Enter the number of UDP connections: "))
+        self.state = "Looking for a server"
 
     def listen_for_offers(self):
         """listen for offer requests and select the first server found"""
         udp_socket = socket(AF_INET, SOCK_DGRAM)
         udp_socket.bind(('', 1234))
-
         print("Client started, listening for offer requests...")
 
         while True:
