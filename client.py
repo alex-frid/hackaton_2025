@@ -146,7 +146,6 @@ class Client:
         for thread in threads:
             thread.join()
 
-        print("All transfers complete.")
 
     def run(self):
         """Main client logic"""

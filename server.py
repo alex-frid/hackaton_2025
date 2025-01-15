@@ -4,6 +4,7 @@ import time
 import struct
 import math
 import selectors
+import ipaddress
 
 # Const
 SERVER_IP = gethostbyname(gethostname())
@@ -16,8 +17,20 @@ REQUEST_TYPE = 0x03  # request message type
 PAYLOAD_TYPE = 0x04  # Payload message type
 MAGIC_COOKIE = b'\xAB\xCD\xDC\xBA'
 
-# Selector for managing multiple sockets
-sel = selectors.DefaultSelector()
+
+# def get_broadcast_ip():
+#     """
+#     Calculate the broadcast IP address for a predefined network.
+#
+#     Returns:
+#         str: The broadcast IP address of the network.
+#     """
+#     network_cidr = "192.168.1.0/24"  # Predefined network
+#     try:
+#         network = ipaddress.ip_network(network_cidr, strict=False)
+#         return str(network.broadcast_address)
+#     except ValueError as e:
+#         return f"Invalid network: {e}"
 
 
 def broadcast_offer():
@@ -28,7 +41,7 @@ def broadcast_offer():
 
     while True:
         try:
-            udp_socket.sendto(data, ('192.168.192.255', 9876))
+            udp_socket.sendto(data, ('255.255.255.255', 9876))
             time.sleep(BROADCAST_INTERVAL)
         except Exception as e:
             print(f"Error in broadcast_offer: {e}")
@@ -100,20 +113,20 @@ def start_server():
     # server starts listen for UDP connections
     udp_socket = socket(AF_INET, SOCK_DGRAM)
     udp_socket.bind(('', UDP_PORT))
-    sel.register(udp_socket, selectors.EVENT_READ, lambda: udp_server(udp_socket))
 
     # start the tcp and listen for connections.
     tcp_socket = socket(AF_INET, SOCK_STREAM)
     tcp_socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
     tcp_socket.bind(('', TCP_PORT))
     tcp_socket.listen(5)
-    sel.register(tcp_socket, selectors.EVENT_READ, lambda: tcp_server(tcp_socket))
 
+    # Run UDP and TCP servers in separate threads
+    Thread(target=udp_server(udp_socket), daemon=True).start()
+    Thread(target=tcp_server(tcp_socket), daemon=True).start()
+
+    # Keep the main thread alive
     while True:
-        events = sel.select()
-        for key, _ in events:
-            callback = key.data
-            callback()
+        time.sleep(1)
 
 
 if __name__ == '__main__':
