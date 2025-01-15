@@ -24,15 +24,23 @@ class Client:
 
     def set_parameters(self):
         """Ask user for parameters"""
-        self.file_size = int(input("Enter the file size (in bytes): "))
-        self.num_tcp_connections = int(input("Enter the number of TCP connections: "))
-        self.num_udp_connections = int(input("Enter the number of UDP connections: "))
+        while True:
+            try:
+                self.file_size = int(input("Enter the file size (in bytes): "))
+                self.num_tcp_connections = int(input("Enter the number of TCP connections: "))
+                self.num_udp_connections = int(input("Enter the number of UDP connections: "))
+                if self.file_size > 0 or self.num_tcp_connections > 0 or self.num_udp_connections > 0:
+                    break
+
+            except ValueError:
+                print("Invalid input please try again")
+
         self.state = "Looking for a server"
 
     def listen_for_offers(self):
         """Listen for offer requests and select the first server found"""
         udp_socket = socket(AF_INET, SOCK_DGRAM)
-        udp_socket.bind(('', 1234))
+        udp_socket.bind(('', 9876))
         print("Client started, listening for offer requests...")
 
         while True:
@@ -57,6 +65,7 @@ class Client:
             current_segment_received = 0
             total_segments = float('inf')
             start_time = time.time()
+            problem = False
 
             while current_segment_received < total_segments:
                 try:
@@ -66,15 +75,18 @@ class Client:
                         payload_size = len(data) - 21
                         total_bytes_received += payload_size
                 except timeout:
+                    problem = True
                     print("UDP transfer timeout: No data received for 5 seconds.")
                     break
 
-            total_time = time.time() - start_time
-            print(
-                f"UDP transfer finished: {total_bytes_received} bytes in {total_time:.2f} seconds, "
-                f"speed: {total_bytes_received * 8 / (total_time + 0.000001):.2f} bits/second, "
-                f"percentage of packets received successfully: {total_bytes_received / self.file_size * 100:.2f}%"
-            )
+            if not problem:
+                total_time = time.time() - start_time
+                print(
+                    f"UDP transfer finished: {total_bytes_received} bytes in {total_time:.2f} seconds, \n"
+                    f"speed: {total_bytes_received * 8 / (total_time + 0.000001):.2f} bits/second, \n"
+                    f"percentage of packets received successfully: {total_bytes_received / self.file_size * 100:.2f}%\n"
+                )
+
         except Exception as e:
             print(f"Error during UDP transfer: {e}")
         finally:
