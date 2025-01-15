@@ -1,3 +1,4 @@
+import math
 from socket import *
 from threading import Thread
 import struct
@@ -17,10 +18,8 @@ class Client:
         self.server_ip = None
         self.UDP_PORT = None
         self.TCP_PORT = None
-        self.num_tcp_connections = 1
-        self.num_udp_connections = 1
-        self.sock_udp = socket(AF_INET, SOCK_DGRAM)
-        self.sock_tcp = socket(AF_INET, SOCK_STREAM)
+        self.num_tcp_connections = 0
+        self.num_udp_connections = 0
         self.state = "Startup"
 
     def set_parameters(self):
@@ -45,20 +44,22 @@ class Client:
                 self.state = "Speedtest"
                 break
 
-    def send_request(self):
-        """Send the request for file transfer"""
-        request_message = MAGIC_COOKIE + struct.pack('B', REQUEST_TYPE) + struct.pack('!Q', self.file_size)
-        self.sock_udp.sendto(request_message, (self.server_ip, self.UDP_PORT))
-
     def handle_udp_transfer(self):
         """UDP transfer function"""
+        sock_udp = socket(AF_INET, SOCK_DGRAM)
+
+        # send request to server
+        request_message = MAGIC_COOKIE + struct.pack('B', REQUEST_TYPE) + struct.pack('!Q', self.file_size)
+        sock_udp.sendto(request_message, (self.server_ip, self.UDP_PORT))
+
+        # start data transfer
         total_bytes_received = 0
         start_time = time.time()
         current_segment_received = 0
         total_segments = float('inf')
 
         while current_segment_received < total_segments:
-            data, _ = self.sock_udp.recvfrom(BUFFER_SIZE)
+            data, _ = sock_udp.recvfrom(BUFFER_SIZE)
             if data.startswith(MAGIC_COOKIE) and data[4] == 0x04:  # Payload message
                 total_segments, current_segment_received = struct.unpack('!QQ', data[5:21])
                 payload_size = len(data) - 21
@@ -66,32 +67,35 @@ class Client:
 
         total_time = time.time() - start_time
         print(
-            f"UDP transfer finished, total time: {total_time:.2f} seconds, total speed: {total_bytes_received * 8 / total_time / 1e6:.2f} Mbits/sec")
+            f"UDP transfer finished: {total_bytes_received} bytes in {total_time:.2f} seconds, "
+            f"speed: {total_bytes_received * 8 / (total_time + 0.000001) / 1e6:.2f} Mbps"
+            f"percentage of packets received successfully: {total_bytes_received/self.file_size * 100:.2f}%”"
+        )
+
 
     def handle_tcp_transfer(self):
         """Handle the TCP transfer."""
+        sock_tcp = socket(AF_INET, SOCK_STREAM)
         try:
-            self.sock_tcp.connect((self.server_ip, self.TCP_PORT))
+            sock_tcp.connect((self.server_ip, self.TCP_PORT))
             print(f"Connected to server {self.server_ip} on TCP port {self.TCP_PORT}")
 
             # Send the request message
-            request_message = MAGIC_COOKIE + struct.pack('B', REQUEST_TYPE) + struct.pack('!Q', self.file_size)
-            self.sock_tcp.send(request_message)
+            file_size = str(self.file_size) + '\n'
+            sock_tcp.send(file_size.encode())
 
             # Receive data
             total_bytes_received = 0
-            start_time = time.time()
             current_segment_received = 0
-            total_segments = float('inf')
+            total_segments = math.ceil(self.file_size / BUFFER_SIZE)
+            start_time = time.time()
 
             while current_segment_received < total_segments:
-                data = self.sock_tcp.recv(BUFFER_SIZE)
-                if data.startswith(MAGIC_COOKIE) and data[4] == PAYLOAD_TYPE:  # Payload message
-                    total_segments, current_segment_received = struct.unpack('!QQ', data[5:21])
-                    print(f"total is :{total_segments} and current segment is : {current_segment_received}")
-                    payload_size = len(data) - 21
-                    total_bytes_received += payload_size
-                    print(f"Segment {current_segment_received}/{total_segments} received.")
+                data = sock_tcp.recv(BUFFER_SIZE)
+                payload_size = len(data)
+                total_bytes_received += payload_size
+                current_segment_received += 1
+                print(f"Segment {current_segment_received}/{total_segments} received.")
 
             total_time = time.time() - start_time
             print(
@@ -102,7 +106,7 @@ class Client:
         except Exception as e:
             print(f"Error during TCP transfer: {e}")
         finally:
-            self.sock_tcp.close()
+            sock_tcp.close()
             print("TCP connection closed.")
 
     def start_speedtest(self):
@@ -136,7 +140,6 @@ class Client:
             self.listen_for_offers()
 
         if self.state == "Speedtest":
-            self.send_request()
             self.start_speedtest()
 
 
